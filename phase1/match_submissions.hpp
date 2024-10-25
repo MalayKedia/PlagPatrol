@@ -86,7 +86,7 @@ int LengthOfMatchingSubsequences(const std::vector<int>& vec1, const std::vector
     for(int i=0; i<len1; i++){
         int match = 0;
         for(int j=0; j<len2; j++){
-            if(i>=1 && j>=1 && vec1[i-1]==vec2[j-1]) continue;
+            if(i>=1 && j>=1 && vec1[i-1]==vec2[j-1]) break;
             int k;
             for(k=0; j+k<len2 && i+k<len1; k++){
                 if(vec1[i+k]!=vec2[j+k]) break;
@@ -95,8 +95,14 @@ int LengthOfMatchingSubsequences(const std::vector<int>& vec1, const std::vector
                 match = k;
             }
         }
-        if(match>=minLength && match>count) count = match;      // use the maximum length of exact match
-        // if(match>=minLength) count += match;         // use the total length of exact matches
+        // if(match>=minLength && match>count) {
+        //     count = match;
+        //     std::cout<<i<<" match "<<match<<"\n";
+        // }      // use the maximum length of exact match
+        if(match>=minLength) {
+            count += match;
+            std::cout<<i<<" match "<<match<<"\n";
+        }         // use the total length of exact matches
     }
 
     return count;

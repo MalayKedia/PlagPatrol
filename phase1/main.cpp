@@ -15,9 +15,11 @@ double execute_and_verify_testcase(std::string test_dir) {
     std::cerr<<"Submission 1\n";
     std::cout<<"No of tokens in submission 1: "<<submission1.size()<<"\n";
     std::cout<<"No of tokens in submission 2: "<<submission2.size()<<"\n\n";
-    for(int x: submission1) std::cerr<<x<<" ";
+    for(int i=0; i<submission1.size(); i++) std::cerr<<"("<<i<<")"<<submission1[i]<<" ";
+//     for(int i=0; i<submission1.size(); i++) std::cerr<<submission1[i]<<" ";
     std::cerr<<"\nSubmission 2\n";
-    for(int x: submission2) std::cerr<<x<<" ";
+    for(int i=0; i<submission2.size(); i++) std::cerr<<"("<<i<<")"<<submission2[i]<<" ";
+//     for(int i=0; i<submission2.size(); i++) std::cerr<<submission2[i]<<" ";
     std::cerr<<"\n\n";
     std::array<int, 5> output = match_submissions(submission1, submission2);
     std::ifstream in(test_dir + "/expected.txt");
