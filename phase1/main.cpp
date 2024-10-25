@@ -13,6 +13,8 @@ double execute_and_verify_testcase(std::string test_dir) {
 
     std::cerr<<test_dir<<"\n\n";
     std::cerr<<"Submission 1\n";
+    std::cout<<"No of tokens in submission 1: "<<submission1.size()<<"\n";
+    std::cout<<"No of tokens in submission 2: "<<submission2.size()<<"\n\n";
     for(int x: submission1) std::cerr<<x<<" ";
     std::cerr<<"\nSubmission 2\n";
     for(int x: submission2) std::cerr<<x<<" ";
@@ -23,8 +25,8 @@ double execute_and_verify_testcase(std::string test_dir) {
     in >> expected[0] >> expected[1] >> expected[2] >> 
             expected[3] >> expected[4];
     in.close();
-    std::cerr<<"OUTPUTS "<<output[0]<<" "<<output[1]<<" "<<output[2]<<" "<<output[3]<<"\n";
-    std::cerr<<"EXPECTED "<<expected[0]<<" "<<expected[1]<<" "<<expected[2]<<" "<<expected[3]<<"\n";
+    std::cout<<"OUTPUTS "<<output[0]<<" "<<output[1]<<" "<<output[2]<<" "<<output[3]<<" "<<output[4]<<"\n";
+    std::cout<<"EXPECTED "<<expected[0]<<" "<<expected[1]<<" "<<expected[2]<<" "<<expected[3]<<" "<<expected[4]<<"\n";
     std::array<double, 5> results;
     results[0] = (output[0] == expected[0]) ? 1.0 : 0.0;
     results[1] = (1.0 * std::min(output[1], expected[1])) / 
