@@ -10,13 +10,27 @@ double execute_and_verify_testcase(std::string test_dir) {
     tokenizer_t file_two(test_dir + "/two.cpp");
     std::vector<int> submission1 = file_one.get_tokens();
     std::vector<int> submission2 = file_two.get_tokens();
-    std::array<int, 5> output = match_submissions(submission1, submission2);
 
+    std::cout<<"Test case name: "<<test_dir<<"\n\n";
+    std::cout<<"No of tokens in submission 1: "<<submission1.size()<<"\n";
+    std::cout<<"No of tokens in submission 2: "<<submission2.size()<<"\n\n";
+
+    std::cerr<<"Submission 1\n";
+    for(int i=0; i<submission1.size(); i++) std::cerr<<"("<<i<<")"<<submission1[i]<<" ";
+//     for(int i=0; i<submission1.size(); i++) std::cerr<<submission1[i]<<" ";
+    std::cerr<<"\nSubmission 2\n";
+    for(int i=0; i<submission2.size(); i++) std::cerr<<"("<<i<<")"<<submission2[i]<<" ";
+//     for(int i=0; i<submission2.size(); i++) std::cerr<<submission2[i]<<" ";
+    std::cerr<<"\n\n";
+
+    std::array<int, 5> output = match_submissions(submission1, submission2);
     std::ifstream in(test_dir + "/expected.txt");
     std::array<int, 5> expected;
     in >> expected[0] >> expected[1] >> expected[2] >> 
             expected[3] >> expected[4];
     in.close();
+    std::cout<<"OUTPUTS "<<output[0]<<" "<<output[1]<<" "<<output[2]<<" "<<output[3]<<" "<<output[4]<<"\n";
+    std::cout<<"EXPECTED "<<expected[0]<<" "<<expected[1]<<" "<<expected[2]<<" "<<expected[3]<<" "<<expected[4]<<"\n\n";
     std::array<double, 5> results;
     results[0] = (output[0] == expected[0]) ? 1.0 : 0.0;
     results[1] = (1.0 * std::min(output[1], expected[1])) / 
@@ -25,6 +39,7 @@ double execute_and_verify_testcase(std::string test_dir) {
             std::max(output[2], expected[2]);
     results[3] = std::pow(1.1, -std::abs(output[3] - expected[3]));
     results[4] = std::pow(1.1, -std::abs(output[4] - expected[4]));
+    std::cerr<<"Marks: "<<results[0]<<" "<<results[1]<<" "<<results[2]<<" "<<results[3]<<" "<<results[4]<<"\n\n";
     return (2.0 * results[0] + results[1] + results[2] + 
             0.5 * (results[3] + results[4]));
 }

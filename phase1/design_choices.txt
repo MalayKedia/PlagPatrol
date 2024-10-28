@@ -1,0 +1,10 @@
+We are looping through the first vector and at each index we loop through the second vector checking for the longest match from each index we can get. 
+
+First of all we make sure that there wasn't a match at I-1 and j-1 because if there was we must've accounted for it previously at I-1.
+
+Because there could be multiple j's where matches for a particular I is found, we iterate through all of them and choose the greatest length of the match because it is likely that there is one particular function that is being repeated again and again in the second submission so we should only account for that function being plagiarised once, along with any other extra code that is also plagiarised above/below it in the code.
+
+At each iteration for j, j is increased by 1 and not directly jumps to the location at which the previous match ends because it is possible to miss longer matches in doing so. Example:
+Submission 1 : f(c), A, f(c), B
+Submission 2 : f(c), A, f(c), A, f(c), B
+In this scenario if we jumped directly to the index 4 (A) of submission 2, we would not detect the common sequence submission1[0:] and submission2[2:]
