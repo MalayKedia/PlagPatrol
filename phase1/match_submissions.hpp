@@ -227,7 +227,8 @@ std::tuple<int, int, int> longest_approximate_match(const std::vector<int>& doc1
 }
 
 std::array<int, 5> match_submissions(std::vector<int> &submission1, std::vector<int> &submission2) {
-    // TODO: Write your code here
+    int len1 = submission1.size(), len2 = submission2.size();
+
     std::array<int, 5> result = {0, 0, 0, 0, 0};
 
     result[1] = LengthOfExactMatch(submission1, submission2, 10);
@@ -236,6 +237,9 @@ std::array<int, 5> match_submissions(std::vector<int> &submission1, std::vector<
     result[2] = std::get<0>(match);
     result[3] = std::get<1>(match);
     result[4] = std::get<2>(match);
+
+    if (result[1] > 0.5*(len1+len2)/2 && result[2] > 0.2* (len1+len2)/2) result[0]=1;
+    // plagged if 20% of continuous code approx matches, and almost 50% of code is exact copied
 
     return result;
 }
