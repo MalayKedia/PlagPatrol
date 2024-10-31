@@ -1,2 +1,0 @@
-make: macos.mak: No such file or directory
-make: *** No rule to make target `macos.mak'.  Stop.
