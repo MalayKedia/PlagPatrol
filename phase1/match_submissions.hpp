@@ -93,23 +93,41 @@ int approximate_match(const std::vector<int>& doc1, const std::vector<int>& doc2
     return longest_len;
 }
 
+#include <future>
+#include <mutex>
+
 std::tuple<int, int, int> longest_approximate_match(const std::vector<int>& doc1, const std::vector<int>& doc2, double mismatch_threshold) {
     int len1 = doc1.size();
     int len2 = doc2.size();
 
+    std::mutex mtx;
     int longest_len = 0;
     int best_pos1 = -1, best_pos2 = -1;
-    for (int i = 0; i < len1; i+=10) {
-        for (int j = 0; j < len2; j+=10) {
-            if ((len1-i+len2-j)/2 < longest_len+10) continue; // early stopping
 
-            int match_len = approximate_match(doc1, doc2, i, j, mismatch_threshold);
-            if (match_len > longest_len) {
-                longest_len = match_len;
-                best_pos1 = i;
-                best_pos2 = j;
-            }
+    // Vector to store futures
+    std::vector<std::future<void>> futures;
+
+    for (int i = 0; i < len1; i += 10) {
+        for (int j = 0; j < len2; j += 10) {
+            if ((len1 - i + len2 - j) / 2 < longest_len + 10) continue; // early stopping
+
+            // Launch each approximate_match in a separate thread
+            futures.emplace_back(std::async(std::launch::async, [&, i, j] {
+                int match_len = approximate_match(doc1, doc2, i, j, mismatch_threshold);
+
+                std::lock_guard<std::mutex> lock(mtx);
+                if (match_len > longest_len) {
+                    longest_len = match_len;
+                    best_pos1 = i;
+                    best_pos2 = j;
+                }
+            }));
         }
+    }
+
+    // Wait for all tasks to complete
+    for (auto& f : futures) {
+        f.get();
     }
 
     if (longest_len < 30) return {0, -1, -1};
