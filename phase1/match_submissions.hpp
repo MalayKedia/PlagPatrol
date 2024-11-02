@@ -15,35 +15,28 @@
 int LengthOfExactMatch(const std::vector<int>& vec1, const std::vector<int>& vec2, int minLength) {
     int len1 = vec1.size();
     int len2 = vec2.size();
-    int count = 0;
+    int sum_exact_matches = 0;
 
     // Loop through all possible lengths between minLength and maxLength
-    for(int i=0; i<len1; i++){
-        int match = 0;
-        for(int j=0; j<len2; j++){
-            // if(i>=1 && j>=1 && vec1[i-1]==vec2[j-1]) break;
-            int k;
-            for(k=0; j+k<len2 && i+k<len1; k++){
-                if(vec1[i+k]!=vec2[j+k]) break;
+    for(int pos1=0; pos1<len1; pos1++){
+        int match_pos1 = 0;
+        for(int pos2=0; pos2<len2; pos2++){
+            int curr_match = 0;
+            for(; pos1+curr_match<len1 && pos2+curr_match<len2; curr_match++){
+                if(vec1[pos1+curr_match]!=vec2[pos2+curr_match]) break;
             }
-            if(k>match){
-                match = k;
+            if(curr_match>match_pos1){
+                match_pos1 = curr_match;
             }
         }
 
-        if(match>=minLength) {
-            count += match;
-            i+=match-1;
-            // std::cerr<<"At "<<i<<" match of len "<<match<<"\n";
-        }     
+        if(match_pos1>=minLength) {
+            sum_exact_matches += match_pos1;
+            pos1+=match_pos1-1;
+        }
     }
-
-    return count;
+    return sum_exact_matches;
 }
-
-#include <unordered_map>
-#include <cassert>
-#include <span>
 
 std::pair<int, int> traversal(int t){
     int x = std::sqrt(t);
@@ -65,18 +58,18 @@ int approximate_match(const std::vector<int>& doc1, const std::vector<int>& doc2
     }
 
     int longest_len = 0;
+    int continuous_mismatch = 0;
+
     for (int t = 0; t < min_mn*min_mn; ++t) {
         auto [i, j] = traversal(t);
 
         if (doc1[start1 + i - 1] == doc2[start2 + j - 1]) {
             dp[i][j] = dp[i - 1][j - 1];
         } else {
-            dp[i][j] = 1+std::min( dp[i - 1][j], std::min(dp[i][j - 1], dp[i - 1][j - 1]));
+            dp[i][j] = 1 + std::min(dp[i - 1][j], std::min(dp[i][j - 1], dp[i - 1][j - 1]));
         }
 
-        int continuous_mismatch = 0;
-
-        if (dp[i][j] < mismatch_threshold * std::min(i, j)) {
+        if (dp[i][j] < mismatch_threshold * (i + j)/2) {
             longest_len = std::max(longest_len, (i + j) / 2);
             continuous_mismatch = 0;
         }
@@ -84,7 +77,18 @@ int approximate_match(const std::vector<int>& doc1, const std::vector<int>& doc2
             continuous_mismatch ++;
         }
 
-        if (continuous_mismatch == 2*std::max(i,j)-1) break;
+        if (std::max(i,j)>=10 && continuous_mismatch == 2*std::max(i,j)+1) break;
+    }
+
+    if (longest_len == min_mn) {
+        int dist = dp[min_mn][min_mn];
+
+        int extra_len = 0;
+        while (extra_len<abs(m-n) && dist < mismatch_threshold * (min_mn + extra_len/2)) {
+            longest_len++;
+            extra_len++;
+            dist ++;
+        }
     }
     return longest_len;
 }
@@ -107,6 +111,8 @@ std::tuple<int, int, int> longest_approximate_match(const std::vector<int>& doc1
             }
         }
     }
+
+    if (longest_len < 30) return {0, -1, -1};
     return {longest_len, best_pos1, best_pos2};
 }
 

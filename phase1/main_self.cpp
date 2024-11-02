@@ -56,6 +56,9 @@ int main(void) {
 
     std::cout<<"Testcase Neeraje_two: "<<std::endl;
     execute_and_verify_testcase("testcases/neeraje_two");
-    
+
+    std::cout<<"Testcase Malay_one: "<<std::endl;
+    execute_and_verify_testcase("testcases/malay_one");
+
     return 0;
 }
