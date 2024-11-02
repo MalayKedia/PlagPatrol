@@ -84,7 +84,7 @@ int approximate_match(const std::vector<int>& doc1, const std::vector<int>& doc2
             continuous_mismatch ++;
         }
 
-        if (continuous_mismatch == std::max(i,j)) break;
+        if (continuous_mismatch == 2*std::max(i,j)-1) break;
     }
     return longest_len;
 }
@@ -117,7 +117,7 @@ std::array<int, 5> match_submissions(std::vector<int> &submission1, std::vector<
 
     result[1] = LengthOfExactMatch(submission1, submission2, 10);
 
-    std::tuple<int, int, int> match = longest_approximate_match(submission1, submission2, 0.05); // 5% mismatch threshold
+    std::tuple<int, int, int> match = longest_approximate_match(submission1, submission2, 0.10); // 10% mismatch threshold
     result[2] = std::get<0>(match);
     result[3] = std::get<1>(match);
     result[4] = std::get<2>(match);
