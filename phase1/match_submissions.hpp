@@ -134,6 +134,55 @@ std::tuple<int, int, int> longest_approximate_match(const std::vector<int>& doc1
     return {longest_len, best_pos1, best_pos2};
 }
 
+#include <iostream>
+#include <vector>
+#include <tuple>
+#include <algorithm>
+
+std::tuple<int, int, int> longestApproximateSubsequence3DP(
+    const std::vector<int>& vector1, 
+    const std::vector<int>& vector2, 
+    int max_mismatches) 
+{
+    int n = vector1.size();
+    int m = vector2.size();
+
+    // DP table where dp[i][j] keeps track of longest subsequence length ending at vector1[i-1] and vector2[j-1]
+    std::vector<std::vector<int>> dp(n + 1, std::vector<int>(m + 1, 0));
+    int max_len = 0;
+    int best_start1 = -1;
+    int best_start2 = -1;
+
+    // Track mismatch counts separately to avoid exceeding max_mismatches
+    std::vector<std::vector<int>> mismatches(n + 1, std::vector<int>(m + 1, 0));
+
+    for (int i = 1; i <= n; ++i) {
+        for (int j = 1; j <= m; ++j) {
+            // Reset for any new starting points, only extend for matches within mismatch tolerance
+            if (vector1[i - 1] == vector2[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+                mismatches[i][j] = mismatches[i - 1][j - 1];
+            } else if (mismatches[i - 1][j - 1] < max_mismatches) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+                mismatches[i][j] = mismatches[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = 0;
+                mismatches[i][j] = 0;
+            }
+
+            // Update maximum length and track start indices if a new max is found
+            if (dp[i][j] > max_len) {
+                max_len = dp[i][j];
+                best_start1 = i - dp[i][j];
+                best_start2 = j - dp[i][j];
+            }
+        }
+    }
+
+    return {max_len, best_start1, best_start2};
+}
+
+
 std::array<int, 5> match_submissions(std::vector<int> &submission1, std::vector<int> &submission2) {
     int len1 = submission1.size(), len2 = submission2.size();
 
@@ -141,10 +190,16 @@ std::array<int, 5> match_submissions(std::vector<int> &submission1, std::vector<
 
     result[1] = LengthOfExactMatch(submission1, submission2, 10);
 
-    std::tuple<int, int, int> match = longest_approximate_match(submission1, submission2, 0.10); // 10% mismatch threshold
+    std::tuple<int, int, int> match = longestApproximateSubsequence3DP(submission1, submission2, 0.05*(submission1.size()+submission2.size()));
     result[2] = std::get<0>(match);
     result[3] = std::get<1>(match);
     result[4] = std::get<2>(match);
+
+    // result[2] = longestApproximateSubsequence_3D_DP(submission1, submission2, 0.025*(submission1.size()+submission2.size()), result[3], result[4]); // 10% mismatch threshold
+    // std::tuple<int, int, int> match = longest_approximate_match(submission1, submission2, 0.10); // 10% mismatch threshold
+    // result[2] = std::get<0>(match);
+    // result[3] = std::get<1>(match);
+    // result[4] = std::get<2>(match);
 
     if (result[1] > 0.5*(len1+len2)/2 && result[2] > 0.2* (len1+len2)/2) result[0]=1;
     // plagged if 20% of continuous code approx matches, and almost 50% of code is exact copied
