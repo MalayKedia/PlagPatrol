@@ -9,8 +9,6 @@
 // DO NOT add "using namespace std;" or include any other files/libraries.
 // Also DO NOT add the include "bits/stdc++.h"
 
-// OPTIONAL: Add your helper functions and data structures here
-
 // Function to find matching subsequences
 int LengthOfExactMatch(const std::vector<int>& vec1, const std::vector<int>& vec2, int minLength) {
     int len1 = vec1.size();
@@ -85,169 +83,36 @@ int approximate_match(const std::vector<int>& doc1, const std::vector<int>& doc2
 
         int extra_len = 0;
         while (extra_len<abs(m-n) && dist < mismatch_threshold * (min_mn + extra_len/2)) {
-            longest_len++;
             extra_len++;
             dist ++;
         }
+        longest_len = min_mn + extra_len/2;
     }
     return longest_len;
 }
-
-#include <future>
-#include <mutex>
 
 std::tuple<int, int, int> longest_approximate_match(const std::vector<int>& doc1, const std::vector<int>& doc2, double mismatch_threshold) {
     int len1 = doc1.size();
     int len2 = doc2.size();
 
-    std::mutex mtx;
     int longest_len = 0;
     int best_pos1 = -1, best_pos2 = -1;
+    for (int i = 0; i < len1; i+=10) {
+        for (int j = 0; j < len2; j+=10) {
+            if ((len1-i+len2-j)/2 < longest_len+10) continue; // early stopping
 
-    // Vector to store futures
-    std::vector<std::future<void>> futures;
-
-    for (int i = 0; i < len1; i += 10) {
-        for (int j = 0; j < len2; j += 10) {
-            if ((len1 - i + len2 - j) / 2 < longest_len + 10) continue; // early stopping
-
-            // Launch each approximate_match in a separate thread
-            futures.emplace_back(std::async(std::launch::async, [&, i, j] {
-                int match_len = approximate_match(doc1, doc2, i, j, mismatch_threshold);
-
-                std::lock_guard<std::mutex> lock(mtx);
-                if (match_len > longest_len) {
-                    longest_len = match_len;
-                    best_pos1 = i;
-                    best_pos2 = j;
-                }
-            }));
+            int match_len = approximate_match(doc1, doc2, i, j, mismatch_threshold);
+            if (match_len > longest_len) {
+                longest_len = match_len;
+                best_pos1 = i;
+                best_pos2 = j;
+            }
         }
-    }
-
-    // Wait for all tasks to complete
-    for (auto& f : futures) {
-        f.get();
     }
 
     if (longest_len < 30) return {0, -1, -1};
     return {longest_len, best_pos1, best_pos2};
 }
-
-#include <iostream>
-#include <vector>
-#include <algorithm>
-#include <tuple>
-
-std::tuple<int, int, int> longestApproximateSubsequenceUk(
-    const std::vector<int>& vector1, 
-    const std::vector<int>& vector2, 
-    int max_mismatches) 
-{
-    int n = vector1.size();
-    int m = vector2.size();
-
-    // DP table limited by a narrow band of 2*max_mismatches + 1
-    std::vector<int> current(2 * max_mismatches + 1, 0);
-    std::vector<int> previous(2 * max_mismatches + 1, 0);
-
-    int max_len = 0;
-    int start1 = -1, start2 = -1;
-
-    for (int i = 1; i <= n; ++i) {
-        std::swap(current, previous);
-
-        for (int j = std::max(1, i - max_mismatches); j <= std::min(m, i + max_mismatches); ++j) {
-            int diag = (j - i + max_mismatches >= 0 && j - i + max_mismatches < 2 * max_mismatches + 1) 
-                    ? previous[j - i + max_mismatches] 
-                    : 0;
-
-            int left = (j > 0 && j - i + max_mismatches - 1 >= 0 && j - i + max_mismatches - 1 < 2 * max_mismatches + 1) 
-                    ? current[j - i + max_mismatches - 1] 
-                    : 0;
-
-            int up = (j - i + max_mismatches + 1 >= 0 && j - i + max_mismatches + 1 < 2 * max_mismatches + 1) 
-                    ? previous[j - i + max_mismatches + 1] 
-                    : 0;
-
-            // int diag = previous[j - i + max_mismatches];       // Previous match
-            // int left = j > 0 ? current[j - i + max_mismatches - 1] : 0;  // Insertion
-            // int up = previous[j - i + max_mismatches + 1];     // Deletion
-
-            if (vector1[i - 1] == vector2[j - 1]) {
-                current[j - i + max_mismatches] = diag + 1;
-            } else {
-                // Calculate possible matches considering mismatch, insertion, and deletion
-                current[j - i + max_mismatches] = std::max({diag, left, up}) + 1;
-                // If no mismatches left, reset to avoid excess tolerance
-                if (current[j - i + max_mismatches] - diag > max_mismatches) {
-                    current[j - i + max_mismatches] = 0;
-                }
-            }
-
-            // Track maximum length and starting indices if a new max is found
-            if (current[j - i + max_mismatches] > max_len) {
-                max_len = current[j - i + max_mismatches];
-                start1 = i - max_len;   // Starting index in vector1
-                start2 = j - max_len;   // Starting index in vector2
-            }
-        }
-    }
-
-    return {max_len, start1, start2};
-}
-
-
-std::tuple<int, int, int> longestApproximateSubsequence_woUk(
-    const std::vector<int>& vector1, 
-    const std::vector<int>& vector2, 
-    int max_mismatches
-) {
-    int n = vector1.size();
-    int m = vector2.size();
-    
-    // DP table for longest matches
-    std::vector<std::vector<int>> dp(n + 1, std::vector<int>(m + 1, 0));
-    
-    int max_len = 0;
-    int start1 = -1, start2 = -1;
-
-    // Fill DP table
-    for (int i = 1; i <= n; ++i) {
-        for (int j = 1; j <= m; ++j) {
-            if (vector1[i - 1] == vector2[j - 1]) {
-                // Match found
-                dp[i][j] = dp[i - 1][j - 1] + 1;
-                
-                // Update max_len and starting indices
-                if (dp[i][j] > max_len) {
-                    max_len = dp[i][j];
-                    start1 = i - max_len;  // Update starting index for vector1
-                    start2 = j - max_len;  // Update starting index for vector2
-                }
-            } else {
-                // Check if we can tolerate mismatches with insertions or deletions
-                int insertion = dp[i][j - 1]; // If we consider the previous item in vector2
-                int deletion = dp[i - 1][j]; // If we consider the previous item in vector1
-
-                if (insertion < max_mismatches) {
-                    dp[i][j] = std::max(dp[i][j], dp[i][j - 1]);
-                }
-                if (deletion < max_mismatches) {
-                    dp[i][j] = std::max(dp[i][j], dp[i - 1][j]);
-                }
-                
-                // If we have at least one mismatch allowed
-                if (dp[i][j] > 0 && (dp[i][j - 1] < max_mismatches || dp[i - 1][j] < max_mismatches)) {
-                    dp[i][j] = std::max(dp[i][j], 1);
-                }
-            }
-        }
-    }
-
-    return std::make_tuple(max_len, start1, start2);
-}
-
 
 std::array<int, 5> match_submissions(std::vector<int> &submission1, std::vector<int> &submission2) {
     int len1 = submission1.size(), len2 = submission2.size();
@@ -256,16 +121,13 @@ std::array<int, 5> match_submissions(std::vector<int> &submission1, std::vector<
 
     result[1] = LengthOfExactMatch(submission1, submission2, 10);
 
-    std::tuple<int, int, int> match = longestApproximateSubsequence_woUk(submission1, submission2,0.05*(len1+len2)/2);
-
-
-    // std::tuple<int, int, int> match = longest_approximate_match(submission1, submission2, 0.10); // 10% mismatch threshold
+    std::tuple<int, int, int> match = longest_approximate_match(submission1, submission2, 0.20); // 20% mismatch threshold
     result[2] = std::get<0>(match);
     result[3] = std::get<1>(match);
     result[4] = std::get<2>(match);
 
-    if (result[1] > 0.5*(len1+len2)/2 && result[2] > 0.2* (len1+len2)/2) result[0]=1;
-    // plagged if 20% of continuous code approx matches, and almost 50% of code is exact copied
+    if (result[1] > 0.5*(len1+len2)/2 && (result[2] > 0.3* (len1+len2)/2 || result[2] > 150 )) result[0]=1;
+    // plagged if 30% or lenth 150 tokens or more of continuous code approx matches, and almost 50% of code is exact copied
 
     return result;
 }
