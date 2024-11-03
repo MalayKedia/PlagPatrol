@@ -198,151 +198,54 @@ std::tuple<int, int, int> longestApproximateSubsequenceUk(
 }
 
 
-#include <vector>
-#include <algorithm>
-#include <iostream>
-#include <tuple>
-
 std::tuple<int, int, int> longestApproximateSubsequence_woUk(
     const std::vector<int>& vector1, 
     const std::vector<int>& vector2, 
-    double max_mismatches_perc
+    int max_mismatches
 ) {
     int n = vector1.size();
     int m = vector2.size();
-    int max_mismatches = max_mismatches_perc*(n+m)/2;
     
-    // DP table where dp[i][j] holds the length of the longest subsequence ending at (i, j)
+    // DP table for longest matches
     std::vector<std::vector<int>> dp(n + 1, std::vector<int>(m + 1, 0));
     
-    // Tracking the maximum length and starting indices
     int max_len = 0;
-    int start1 = -1;
-    int start2 = -1;
-    
+    int start1 = -1, start2 = -1;
+
+    // Fill DP table
     for (int i = 1; i <= n; ++i) {
         for (int j = 1; j <= m; ++j) {
             if (vector1[i - 1] == vector2[j - 1]) {
-                // Exact match, extend the sequence
+                // Match found
                 dp[i][j] = dp[i - 1][j - 1] + 1;
-            } else {
-                // Allow up to max_mismatches for an approximate match
-                if (dp[i - 1][j - 1] < max_mismatches && dp[i - 1][j - 1] != 0) {
-                // if (dp[i - 1][j - 1] < max_mismatches) {
-                    dp[i][j] = dp[i - 1][j - 1] + 1;
-                } else {
-                    dp[i][j] = 0;
+                
+                // Update max_len and starting indices
+                if (dp[i][j] > max_len) {
+                    max_len = dp[i][j];
+                    start1 = i - max_len;  // Update starting index for vector1
+                    start2 = j - max_len;  // Update starting index for vector2
                 }
-            }
+            } else {
+                // Check if we can tolerate mismatches with insertions or deletions
+                int insertion = dp[i][j - 1]; // If we consider the previous item in vector2
+                int deletion = dp[i - 1][j]; // If we consider the previous item in vector1
 
-            // Check if this is the longest sequence found so far
-            if (dp[i][j] > max_len) {
-                max_len = dp[i][j];
-                start1 = i - max_len;
-                start2 = j - max_len;
+                if (insertion < max_mismatches) {
+                    dp[i][j] = std::max(dp[i][j], dp[i][j - 1]);
+                }
+                if (deletion < max_mismatches) {
+                    dp[i][j] = std::max(dp[i][j], dp[i - 1][j]);
+                }
+                
+                // If we have at least one mismatch allowed
+                if (dp[i][j] > 0 && (dp[i][j - 1] < max_mismatches || dp[i - 1][j] < max_mismatches)) {
+                    dp[i][j] = std::max(dp[i][j], 1);
+                }
             }
         }
     }
 
     return std::make_tuple(max_len, start1, start2);
-}
-
-
-#include <unordered_map>
-#include <tuple>
-
-// Helper function to resize bitmaps for sequences longer than 64 bits
-void resizeBitmaps(std::vector<uint64_t>& vp, std::vector<uint64_t>& vn, int num_blocks) {
-    vp.resize(num_blocks, ~0ULL); // Initialize all to match
-    vn.resize(num_blocks, 0ULL);  // Initialize all to mismatch
-}
-
-// Helper function to shift all blocks in the vector left by one bit
-void shiftLeft(std::vector<uint64_t>& bits) {
-    uint64_t carry = 0;
-    for (auto& block : bits) {
-        uint64_t new_carry = block >> 63; // Get carry out
-        block = (block << 1) | carry; // Shift and add carry in
-        carry = new_carry; // Update carry
-    }
-}
-
-std::tuple<int, int, int> longestApproximateSubsequenceMyers(
-    const std::vector<int>& vector1, 
-    const std::vector<int>& vector2, 
-    int max_mismatches) 
-{
-    int n = vector1.size();
-    int m = vector2.size();
-    int num_blocks = (m + 63) / 64; // Number of 64-bit blocks needed
-    int max_len = 0;
-    int best_start1 = -1;
-    int best_start2 = -1;
-
-    // Map each element in vector2 to its bitmask positions
-    std::unordered_map<int, std::vector<uint64_t>> bitmask;
-    for (int j = 0; j < m; ++j) {
-        int block = j / 64;
-        int pos = j % 64;
-        bitmask[vector2[j]].resize(num_blocks);
-        bitmask[vector2[j]][block] |= (1ULL << pos);
-    }
-
-    // Process each start position in vector1
-    for (int i = 0; i < n; ++i) {
-        std::vector<uint64_t> vp, vn;
-        resizeBitmaps(vp, vn, num_blocks);
-        int current_len = 0;
-        int start2 = -1;
-
-        for (int j = i, errors = 0; j < n && errors <= max_mismatches; ++j) {
-            int block = j / 64;
-            int pos = j % 64;
-            
-            // Retrieve the character bitmask for vector1[j]
-            auto it = bitmask.find(vector1[j]);
-            std::vector<uint64_t> char_mask(num_blocks, 0);
-            if (it != bitmask.end()) {
-                char_mask = it->second;
-            }
-
-            std::vector<uint64_t> d0(num_blocks), hp(num_blocks), hn(num_blocks);
-            for (int b = 0; b < num_blocks; ++b) {
-                uint64_t x = char_mask[b] | vn[b];
-                d0[b] = (((x & vp[b]) + vp[b]) ^ vp[b]) | x;
-                hp[b] = vn[b] | ~(d0[b] | vp[b]);
-                hn[b] = d0[b] & vp[b];
-            }
-
-            shiftLeft(vp);
-            shiftLeft(vn);
-
-            for (int b = 0; b < num_blocks; ++b) {
-                vp[b] = hn[b] | ~(d0[b] | hp[b]);
-                vn[b] = hp[b] & d0[b];
-            }
-
-            // If the current position matches, increment length
-            if ((d0[block] & (1ULL << pos)) == 0) {
-                if (current_len == 0) {
-                    start2 = j - current_len; // Mark start of match in vector2
-                }
-                ++current_len;
-            } else {
-                ++errors; // Increment mismatches
-                current_len = 0; // Reset length on mismatch
-            }
-
-            // Update maximum length and start positions if this is the best match so far
-            if (current_len > max_len) {
-                max_len = current_len;
-                best_start1 = i;      // Start index in vector1
-                best_start2 = start2; // Start index in vector2
-            }
-        }
-    }
-
-    return {max_len, best_start1, best_start2};
 }
 
 
@@ -353,7 +256,7 @@ std::array<int, 5> match_submissions(std::vector<int> &submission1, std::vector<
 
     result[1] = LengthOfExactMatch(submission1, submission2, 10);
 
-    std::tuple<int, int, int> match = longestApproximateSubsequence_woUk(submission1, submission2, 0.10);
+    std::tuple<int, int, int> match = longestApproximateSubsequence_woUk(submission1, submission2,0.05*(len1+len2)/2);
 
 
     // std::tuple<int, int, int> match = longest_approximate_match(submission1, submission2, 0.10); // 10% mismatch threshold

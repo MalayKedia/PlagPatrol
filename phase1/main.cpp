@@ -12,6 +12,12 @@ void execute_and_verify_testcase(std::string test_dir) {
     std::vector<int> submission1 = file_one.get_tokens();
     std::vector<int> submission2 = file_two.get_tokens();
     std::array<int, 5> output = match_submissions(submission1, submission2);
+    // std::cout<<"Submission1: \n";
+    // for(int i=0; i<submission1.size(); i++) std::cout<<i<<") "<<submission1[i]<<" ";
+    // std::cout<<"\n";
+    // std::cout<<"Submission2: \n";
+    // for(int i=0; i<submission2.size(); i++) std::cout<<i<<") "<<submission2[i]<<" ";
+    // std::cout<<"\n";
 
     std::ifstream in(test_dir + "/expected.txt");
     std::array<int, 5> expected;
