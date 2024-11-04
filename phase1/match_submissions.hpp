@@ -10,7 +10,7 @@
 // Also DO NOT add the include "bits/stdc++.h"
 
 // Function to find matching subsequences
-int LengthOfExactMatch(const std::vector<int>& vec1, const std::vector<int>& vec2, int minLength) {
+int LengthOfExactMatch(const std::vector<int>& vec1, const std::vector<int>& vec2, const int& minLength) {
     int len1 = vec1.size();
     int len2 = vec2.size();
     int sum_exact_matches = 0;
@@ -36,57 +36,28 @@ int LengthOfExactMatch(const std::vector<int>& vec1, const std::vector<int>& vec
     return sum_exact_matches;
 }
 
-std::pair<int, int> traversal(int t){
-    int x = std::sqrt(t);
-
-    int diff = t - x*x;
-    if(diff<x) return {x+1, diff+1};
-    else return {diff-x+1, x+1};
-}
-
-int approximate_match(const std::vector<int>& doc1, const std::vector<int>& doc2, int start1, int start2, double mismatch_threshold) {
+int approximate_match(const std::vector<int>& doc1, const std::vector<int>& doc2, const int& start1, const int& start2, const double& mismatch_threshold) {
     int m = doc1.size() - start1;
     int n = doc2.size() - start2;
 
-    int min_mn = std::min(m,n);
-    std::vector<std::vector<int>> dp(min_mn + 1, std::vector<int>(min_mn + 1, 0));
-    for (int i = 0; i <= min_mn; ++i) {
-        dp[i][0] = i;
-        dp[0][i] = i;
-    }
+    std::vector<std::vector<int>> dp(m + 1, std::vector<int>(n + 1, -1));
+    for (int i = 0; i <= m; ++i) dp[i][0] = i;
+    for (int i = 0; i <= n; ++i) dp[0][i] = i;
 
     int longest_len = 0;
-    int continuous_mismatch = 0;
 
-    for (int t = 0; t < min_mn*min_mn; ++t) {
-        auto [i, j] = traversal(t);
+    for (int t = 0; t < m*n; ++t) {
+        int i = t/n + 1, j = t%n + 1;
 
         if (doc1[start1 + i - 1] == doc2[start2 + j - 1]) {
             dp[i][j] = dp[i - 1][j - 1];
         } else {
-            dp[i][j] = 1 + std::min(dp[i - 1][j], std::min(dp[i][j - 1], dp[i - 1][j - 1]));
+            dp[i][j] = 1 + std::min(dp[i - 1][j - 1], std::min(dp[i][j - 1], dp[i - 1][j]));
         }
 
-        if (dp[i][j] < mismatch_threshold * (i + j)/2) {
-            longest_len = std::max(longest_len, (i + j) / 2);
-            continuous_mismatch = 0;
+        if (dp[i][j] <= mismatch_threshold * std::min(i,j) ) {
+            longest_len = std::max(longest_len, std::max(i,j));
         }
-        else {
-            continuous_mismatch ++;
-        }
-
-        if (std::max(i,j)>=10 && continuous_mismatch == 2*std::max(i,j)+1) break;
-    }
-
-    if (longest_len == min_mn) {
-        int dist = dp[min_mn][min_mn];
-
-        int extra_len = 0;
-        while (extra_len<abs(m-n) && dist < mismatch_threshold * (min_mn + extra_len/2)) {
-            extra_len++;
-            dist ++;
-        }
-        longest_len = min_mn + extra_len/2;
     }
     return longest_len;
 }
@@ -99,7 +70,7 @@ std::tuple<int, int, int> longest_approximate_match(const std::vector<int>& doc1
     int best_pos1 = -1, best_pos2 = -1;
     for (int i = 0; i < len1; i+=10) {
         for (int j = 0; j < len2; j+=10) {
-            if ((len1-i+len2-j)/2 < longest_len+10) continue; // early stopping
+            if (std::max(len1-i,len2-j) < longest_len + 10) continue; // early stopping
 
             int match_len = approximate_match(doc1, doc2, i, j, mismatch_threshold);
             if (match_len > longest_len) {

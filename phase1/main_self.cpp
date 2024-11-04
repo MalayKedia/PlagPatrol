@@ -63,5 +63,7 @@ int main(void) {
     std::cout<<"Testcase Aakash_one: "<<std::endl;
     execute_and_verify_testcase("testcases/aakash_one");
     
+    std::cout<<"Testcase Chid_three: "<<std::endl;
+    execute_and_verify_testcase("testcases/chid_three");
     return 0;
 }
