@@ -1,8 +1,6 @@
 #include "plagiarism_checker.hpp"
 // You should NOT add ANY other includes to this file.
 // Do NOT add "using namespace std;".
-#include <thread>
-#include <mutex>
 // TODO: Implement the methods of the plagiarism_checker_t class
 
 plagiarism_checker_t::plagiarism_checker_t(void){
@@ -11,7 +9,11 @@ plagiarism_checker_t::plagiarism_checker_t(void){
 }
 
 plagiarism_checker_t::plagiarism_checker_t(std::vector<std::shared_ptr<submission_t>> __submissions){
-    submissions = __submissions;
+    for(auto submission : __submissions){
+        tokenizer_t file_added(submission->codefile);
+        std::vector<int> tokens = file_added.get_tokens();
+        submissions.push_back(std::make_pair(tokens, std::chrono::system_clock::now()));
+    }
     reqd_matches = 75;
     reqd_instances = 10;
 }
@@ -20,7 +22,7 @@ plagiarism_checker_t::~plagiarism_checker_t(void){
     submissions.clear();
 }
 
-pair<int,int> plagiarism_checker_t::ExactMatchesInst(const std::vector<int>& vec1, const std::vector<int>& vec2, const int& minLength) {
+std::pair<int,int> plagiarism_checker_t::ExactMatchesInst(const std::vector<int>& vec1, const std::vector<int>& vec2, const int& minLength) {
     int len1 = vec1.size();
     int len2 = vec2.size();
     int max_exact_matches = 0;
@@ -59,8 +61,8 @@ void plagiarism_checker_t::processChunk(std::shared_ptr<submission_t> submission
         int max_matches = matches.first;
         int instances = matches.second;
         if(max_matches>=reqd_matches || instances>=reqd_instances){
-            submission->student->flag_student();
-            submission->professor->flag_professor();
+            submission->student->flag_student(submission);
+            submission->professor->flag_professor(submission);
         }
     }
 }
@@ -69,7 +71,7 @@ void plagiarism_checker_t::add_submission(std::shared_ptr<submission_t> __submis
     auto now = std::chrono::system_clock::now();
 
     tokenizer_t file_added(__submission->codefile);
-    std::vector<int> tokens = file_checking.get_tokens();
+    std::vector<int> tokens = file_added.get_tokens();
 
     submissions.push_back(std::make_pair(tokens, now));
 
@@ -85,7 +87,9 @@ void plagiarism_checker_t::add_submission(std::shared_ptr<submission_t> __submis
         size_t end = std::min(start + chunk_size, submissions.size());
 
         // Create and add thread to the vector
-        threads.emplace_back(this->processChunk, __submission, std::ref(tokens), start, end);
+        threads.emplace_back([this, __submission, &tokens, start, end]() {
+            this->processChunk(__submission, tokens, start, end);
+        });
     }
 
     // Wait for all threads to finish

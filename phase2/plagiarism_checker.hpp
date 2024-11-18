@@ -1,6 +1,8 @@
 #include "structures.hpp"
 // -----------------------------------------------------------------------------
-
+#include <thread>
+#include <mutex>
+#include <chrono>
 // You are free to add any STL includes above this comment, below the --line--.
 // DO NOT add "using namespace std;" or include any other files/libraries.
 // Also DO NOT add the include "bits/stdc++.h"
@@ -25,5 +27,6 @@ protected:
     int reqd_matches;
     int reqd_instances;
     int minLengthToMatch;
+    std::mutex mtx;
     // End TODO
 };
