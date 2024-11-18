@@ -18,6 +18,12 @@ public:
 
 protected:
     // TODO: Add members and function signatures here
-    
+    std::vector<std::pair<std::vector<int>, std::chrono::system_clock::time_point>> submissions;
+    // std::vector<std::chrono::system_clock::time_point> timestamps;
+    std::pair<int,int> ExactMatchesInst(const std::vector<int>&, const std::vector<int>&, const int&);
+    void processChunk(std::shared_ptr<submission_t>, std::vector<int>, int, int);
+    int reqd_matches;
+    int reqd_instances;
+    int minLengthToMatch;
     // End TODO
 };
