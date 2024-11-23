@@ -3,6 +3,11 @@
 // Do NOT add "using namespace std;".
 // TODO: Implement the methods of the plagiarism_checker_t class
 #include<functional>
+
+#define REQD_MATCH 75
+#define REQD_INST 10
+#define MINLEN 20
+
 int count = 0;
 
 tokenised_submission::tokenised_submission(double& timestamp, std::shared_ptr<submission_t>& sub_ptr){
@@ -16,18 +21,20 @@ tokenised_submission::~tokenised_submission(){
 }
 
 plagiarism_checker_t::plagiarism_checker_t(void){
-    reqd_matches = 75;
-    reqd_instances = 10;
+    reqd_matches = REQD_MATCH;
+    reqd_instances = REQD_INST;
+    minLengthToMatch = MINLEN;
 }
 
 plagiarism_checker_t::plagiarism_checker_t(std::vector<std::shared_ptr<submission_t>> __submissions){
     std::cerr<<"plagiarism_checker_t constructor called"<<std::endl;
+    reqd_matches = REQD_MATCH;
+    reqd_instances = REQD_INST;
+    minLengthToMatch = MINLEN;
     for(auto submission : __submissions){
         std::cerr<<"Adding an original submission\n";
         add_submission(submission);
     }
-    reqd_matches = 75;
-    reqd_instances = 10;
     std::cerr<<"plagiarism_checker_t constructor finished\n";
 }
 
@@ -53,7 +60,6 @@ std::pair<int,int> plagiarism_checker_t::ExactMatchesInst(const std::shared_ptr<
                 match_pos1 = curr_match;
             }
         }
-        // std::cerr<<"match_pos1: "<<match_pos1<<std::endl;
         // if a match of length minLength or more is found, add it to the sum and skip to the end of the match
         if(match_pos1>=minLength) {
             // max_exact_matches += match_pos1;
@@ -62,7 +68,6 @@ std::pair<int,int> plagiarism_checker_t::ExactMatchesInst(const std::shared_ptr<
             pos1+=match_pos1-1;
         }
     }
-    std::cerr<<"Done exact matches\n";
     return std::make_pair(max_exact_matches, inst);
 }
 
@@ -94,8 +99,8 @@ void plagiarism_checker_t::add_submission(std::shared_ptr<submission_t> __submis
                 __submission->professor->flag_professor(__submission);
                 flagged_files.insert(curr_ptr->ptr);
 
-                if(sub_ptr->time - curr_ptr->time < 1000 && flagged_files.find(sub_ptr->ptr)==flagged_files.end()){
-                    std::cerr<<"Plaiarism detected for old file\n";
+                if(std::abs(sub_ptr->time - curr_ptr->time) < 1000 && flagged_files.find(sub_ptr->ptr)==flagged_files.end()){
+                    std::cerr<<"Plagiarism detected for old file with time diff: "<<sub_ptr->time - curr_ptr->time<<std::endl;
                     std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
                     sub_ptr->ptr->student->flag_student(sub_ptr->ptr);
                     sub_ptr->ptr->professor->flag_professor(sub_ptr->ptr);
@@ -105,11 +110,11 @@ void plagiarism_checker_t::add_submission(std::shared_ptr<submission_t> __submis
             }
 
         }
-        else if (plag_found && sub_ptr->time - curr_ptr->time < 1000 && flagged_files.find(sub_ptr->ptr)==flagged_files.end()){
+        else if (plag_found && std::abs(sub_ptr->time - curr_ptr->time) < 1000 && flagged_files.find(sub_ptr->ptr)==flagged_files.end()){
             auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, 20);
 
             if (max_matches>=reqd_matches || instances>=reqd_instances){
-                std::cerr<<"Plagiarism detected for old file\n";
+                std::cerr<<"Plagiarism detected for old file with time diff: "<<sub_ptr->time - curr_ptr->time<<std::endl;
                 std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
                 sub_ptr->ptr->student->flag_student(sub_ptr->ptr);
                 sub_ptr->ptr->professor->flag_professor(sub_ptr->ptr);
