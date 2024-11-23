@@ -13,7 +13,9 @@ class subm_token_time_ptr {
         std::vector<int> tokens;
         double time;
         std::shared_ptr<submission_t> ptr;
-        subm_token_time_ptr(std::vector<int>&, double&, std::shared_ptr<submission_t>&);
+
+        subm_token_time_ptr(double&, std::shared_ptr<submission_t>&);
+        ~subm_token_time_ptr();
 };
 
 

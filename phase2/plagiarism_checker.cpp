@@ -5,10 +5,15 @@
 #include<functional>
 int count = 0;
 
-subm_token_time_ptr::subm_token_time_ptr(std::vector<int>& vec, double& d, std::shared_ptr<submission_t>& pt){
-    tokens = vec;
+subm_token_time_ptr::subm_token_time_ptr(double& d, std::shared_ptr<submission_t>& pt){
+    tokenizer_t file_added(pt->codefile);
+    tokens = file_added.get_tokens();
     time = d;
     ptr = pt;
+}
+
+subm_token_time_ptr::~subm_token_time_ptr(){
+    // delete ptr;
 }
 
 plagiarism_checker_t::plagiarism_checker_t(void){
@@ -17,16 +22,18 @@ plagiarism_checker_t::plagiarism_checker_t(void){
 }
 
 plagiarism_checker_t::plagiarism_checker_t(std::vector<std::shared_ptr<submission_t>> __submissions){
+    std::cerr<<"plagiarism_checker_t constructor called"<<std::endl;
     for(auto submission : __submissions){
-        tokenizer_t file_added(submission->codefile);
-        std::vector<int> tokens = file_added.get_tokens();
-        auto now = std::chrono::system_clock::now();
-        auto duration = now.time_since_epoch();
-        double milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-        submissions.push_back(subm_token_time_ptr(tokens, milliseconds, submission));
+        std::cerr<<"Adding an original submission\n";
+        add_submission(submission);
+        // auto now = std::chrono::system_clock::now();
+        // auto duration = now.time_since_epoch();
+        // double milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+        // submissions.push_back(subm_token_time_ptr(milliseconds, submission));
     }
     reqd_matches = 75;
     reqd_instances = 10;
+    std::cerr<<"plagiarism_checker_t constructor finished\n";
 }
 
 plagiarism_checker_t::~plagiarism_checker_t(void){
@@ -51,7 +58,7 @@ std::pair<int,int> plagiarism_checker_t::ExactMatchesInst(const std::vector<int>
                 match_pos1 = curr_match;
             }
         }
-        std::cout<<"match_pos1: "<<match_pos1<<std::endl;
+        std::cerr<<"match_pos1: "<<match_pos1<<std::endl;
         // if a match of length minLength or more is found, add it to the sum and skip to the end of the match
         if(match_pos1>=minLength) {
             max_exact_matches += match_pos1;
@@ -60,6 +67,7 @@ std::pair<int,int> plagiarism_checker_t::ExactMatchesInst(const std::vector<int>
             pos1+=match_pos1-1;
         }
     }
+    std::cerr<<"Done exact matches\n";
     return std::make_pair(max_exact_matches, inst);
 }
 
@@ -88,44 +96,36 @@ void plagiarism_checker_t::processChunk(std::shared_ptr<submission_t> submission
 }
 
 
-
 void plagiarism_checker_t::add_submission(std::shared_ptr<submission_t> __submission){
    
-    std::cout<<"Adding submission: "<<count<<std::endl; count++;
+    std::cerr<<"Adding submission: "<<count<<std::endl; count++;
     auto now = std::chrono::system_clock::now();
     auto duration = now.time_since_epoch();
     double milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
-    tokenizer_t file_added(__submission->codefile);
-    std::vector<int> tokens = file_added.get_tokens();
+    subm_token_time_ptr curr(milliseconds, __submission);
+    submissions.push_back(curr);
 
-    submissions.push_back(subm_token_time_ptr(tokens, milliseconds, __submission));
-
-    unsigned int num_threads = std::thread::hardware_concurrency()-5;
-    size_t chunk_size = (submissions.size() + num_threads - 1) / num_threads;
-
-    // Vector to hold threads
+    // thread for the call
     std::thread thread;
+    // thread.detach();
 
-    // Create threads
-    for (size_t t = 0; t < num_threads; ++t) {
-        size_t start = t * chunk_size;
-        size_t end = std::min(start + chunk_size, submissions.size());
-
-        // Create and add thread to the vector
-        threads.emplace_back(
-            std::bind(&plagiarism_checker_t::processChunk, this, __submission, tokens, start, end, milliseconds)
-        );
-        // threads.emplace_back(this->processChunk, __submission, tokens, start, end, milliseconds);
-        // threads.emplace_back([this, __submission, &tokens, start, end, milliseconds]() {
-        //     this->processChunk(__submission, tokens, start, end, milliseconds);
-        // });
+    for(auto subm: submissions){
+        std::pair<int,int> matches = ExactMatchesInst(curr.tokens, subm.tokens, 10);
+        int max_matches = matches.first;
+        int instances = matches.second;
+        if(max_matches>=reqd_matches || instances>=reqd_instances){
+            __submission->student->flag_student(__submission);
+            __submission->professor->flag_professor(__submission);
+            if(subm.time - curr.time < 1){
+                subm.ptr->student->flag_student(subm.ptr);
+                subm.ptr->professor->flag_professor(subm.ptr);
+            }
+        }
     }
+    std::cerr<<"thread detached here\n";
+    // thread.detach();
 
-    // Wait for all threads to finish
-    for (auto& thread : threads) {
-        thread.join();
-    }
 }
 
 // End TODO
