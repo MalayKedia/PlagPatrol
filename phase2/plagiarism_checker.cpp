@@ -40,13 +40,17 @@ void plagiarism_checker_t::start_worker_thread(void){
             std::shared_ptr<tokenised_submission> curr_ptr;
             {
                 std::unique_lock<std::mutex> lock(queueMutex);
+
                 queueCV.wait(lock, [this] { return !inputQueue.empty() || done; });
-                if (done && inputQueue.empty()) return;
+                // Lock is unlocked until condition becomes true, or queueCV is notified
+                if (done && inputQueue.empty()) return; 
+                // If the queue is empty and the done flag is set, the thread should exit
                 curr_ptr = inputQueue.front();
                 inputQueue.pop();
             }
             process_submission(curr_ptr);
-            submissions.push_back(curr_ptr); // The current submission is added to vector at the end of it checking against previous files
+            submissions.push_back(curr_ptr); 
+            // The current submission is added to vector at the end of it checking against previous files
         }
     });
 }
@@ -56,33 +60,17 @@ plagiarism_checker_t::~plagiarism_checker_t(void){
         std::lock_guard<std::mutex> lock(queueMutex);
         done = true;
     }
-    queueCV.notify_all();  // Notify the worker thread to stop
+    queueCV.notify_one();  // Notify the worker thread that done flag has been given
 
     if (workerThread.joinable()) workerThread.join();
-
-    // std::cerr<<"times\n";
-    // double start_time = 0;
-    // for (auto sub : submissions){
-    //     if (sub->time == 0) continue;
-    //     if (start_time == 0) start_time = sub->time;
-    //     std::cerr<<sub->time - start_time<<std::endl;
-    // }
-
-    // std::cerr<<"Indexes\n";
-    // for (auto sub: submissions){
-    //     std::cerr<<"size "<<sub->tokens.size()<<std::endl;
-    //     for (auto indices: sub->match_indices){
-    //         std::cerr<<indices<<" ";
-    //     }
-    //     std::cerr<<std::endl;
-    // }
 }
 
 void plagiarism_checker_t::add_original_submission(std::shared_ptr<submission_t> __submission){
     std::shared_ptr<tokenised_submission> curr_ptr = std::make_shared<tokenised_submission>(0, __submission);
     
     curr_ptr->tokens = tokenizer_t(__submission->codefile).get_tokens();
-    curr_ptr->flagged = true; // So that it is never flagged in the future
+    curr_ptr->flagged = true; 
+    // So that it original submissions are never flagged in the future
 
     submissions.push_back(curr_ptr);
 }
@@ -102,49 +90,53 @@ void plagiarism_checker_t::add_submission(std::shared_ptr<submission_t> __submis
 }
 
 void plagiarism_checker_t::process_submission(std::shared_ptr<tokenised_submission> curr_ptr){
+    // Tokenising the new submission
     curr_ptr->tokens = tokenizer_t(curr_ptr->ptr->codefile).get_tokens();
 
     bool plag_found = false; // tracks if plagiarism has been found for the new file
-    {
-        std::lock_guard<std::mutex> lock(queueMutex);
-        for(std::shared_ptr<tokenised_submission> sub_ptr: submissions){
 
-            if (!plag_found){
-                auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, minLengthToMatch);
+    for(std::shared_ptr<tokenised_submission> sub_ptr: submissions){
+        if (!plag_found){
+            auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, minLengthToMatch);
 
-                if(max_matches>=reqd_len_exact || instances>=reqd_instances_exact){
-                    // std::cerr<<"Plagiarism detected for new file\n";
-                    // std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
-                    plag_found = true;
-                    curr_ptr->flag();                    
+            if(max_matches>=reqd_len_exact || instances>=reqd_instances_exact){
+                // Handles direct plagiarism for the new submission
+                plag_found = true;
+                curr_ptr->flag();                    
 
-                    if(!sub_ptr->flagged && (curr_ptr->time - sub_ptr->time <= 1000 || sub_ptr->match_indices.size()>=reqd_instances_patchwork)){
-                        // std::cerr<<"Plagiarism detected for old file with time diff: "<<sub_ptr->time - curr_ptr->time<<std::endl;
-                        // std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
-                        sub_ptr->flag();
-                    }
-                }
-
-            }
-            // If plaigarism in new file has already been detected, check old files within 1 sec 
-            else if (curr_ptr->time - sub_ptr->time <= 1000 && !sub_ptr->flagged){
-                auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, minLengthToMatch);
-
-                if (max_matches>=reqd_len_exact || instances>=reqd_instances_exact || sub_ptr->match_indices.size()>=reqd_instances_patchwork){
-                    // std::cerr<<"Plagiarism detected for old file with time diff: "<<sub_ptr->time - curr_ptr->time<<std::endl;
-                    // std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
-                    // std::cerr<<"Patchwork size "<<sub_ptr->match_indices.size()<<std::endl;
+                // Check if the old file with direct plaigarism is within 1 sec of the new file
+                if(!sub_ptr->flagged && (curr_ptr->time - sub_ptr->time <= 1000)){
                     sub_ptr->flag();
                 }
             }
+            else if (curr_ptr->match_indices.size()>=reqd_instances_patchwork){
+                // Handles patchwork plagiarism for the new submission
+                plag_found = true;
+                curr_ptr->flag();
+            }
+        }
+        // If plaigarism in new file has already been detected, check old files which havent been flagged yet within 1 sec of new file
+        else if (!sub_ptr->flagged && curr_ptr->time - sub_ptr->time <= 1000){
+            auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, minLengthToMatch);
+
+            // If the old file has direct plagiarism with the new file, flag it
+            if (max_matches>=reqd_len_exact || instances>=reqd_instances_exact){
+                sub_ptr->flag();
+            }
+        }
+
+        // If the old file has patchwork plagiarism with the new file, flag it
+        if (!sub_ptr->flagged && sub_ptr->match_indices.size()>=reqd_instances_patchwork){
+            sub_ptr->flag();
         }
     }
 }
 
 std::pair<int,int> ExactMatchesInst(const std::shared_ptr<tokenised_submission> sub1, const std::shared_ptr<tokenised_submission> sub2, const int minLength) {
+    // sub1 will always be the newer submission, and sub2 will be the older submission
     int len1 = sub1->tokens.size();
     int len2 = sub2->tokens.size();
-    int max_exact_matches = 0;
+    int max_exact_match = 0;
     int inst = 0;
 
     // iterate over all possible starting positions in vec1 and vec2
@@ -160,36 +152,40 @@ std::pair<int,int> ExactMatchesInst(const std::shared_ptr<tokenised_submission> 
                 match_pos2 = pos2;
             }
         }
-        // if a match of length minLength or more is found, add it to the sum and skip to the end of the match
         if(largest_match>=minLength) {
-            // max_exact_matches += match_pos1;
-            max_exact_matches = std::max(max_exact_matches, largest_match);
+            // Update the max_exact_match and instances of plagiarism
+            max_exact_match = std::max(max_exact_match, largest_match);
             inst++;
             pos1+=largest_match-1;
 
-            for (int i=pos1+minLength/2; i<pos1+largest_match; i+=minLength){
-                auto ub = sub1->match_indices.upper_bound(i);
-                if (ub == sub1->match_indices.end()){
-                    sub1->match_indices.insert(i);
-                }
-                else if (*(sub1->match_indices.lower_bound(i)) -i >= minLength*0.8 && (ub == sub1->match_indices.begin() || i - *(--ub) >= minLength*0.8)){
-                    sub1->match_indices.insert(i);
+            // Update the match_indices for new submission if it is not flagged yet
+            if (!sub1->flagged){
+                for (int i=pos1+minLength/2; i<pos1+largest_match; i+=minLength){
+                    auto lb = sub1->match_indices.lower_bound(i);
+                    if (lb == sub1->match_indices.end()){
+                        sub1->match_indices.insert(i);
+                    }
+                    else if (*lb -i >= minLength*0.8 && (lb == sub1->match_indices.begin() || i - *(--lb) >= minLength*0.8)){
+                        sub1->match_indices.insert(i);
+                    }
                 }
             }
-            if (!sub2->flagged){
+
+            // Update the match_indices for old submission if it is not flagged yet and is within 1 sec of new submission
+            if (!sub2->flagged && sub1->time - sub2->time <= 1000){
                 for (int i=match_pos2+minLength/2; i<match_pos2+largest_match; i+=minLength){
-                    auto ub = sub2->match_indices.upper_bound(i);
-                    if (ub == sub2->match_indices.end()){
+                    auto lb = sub2->match_indices.lower_bound(i);
+                    if (lb == sub2->match_indices.end()){
                         sub2->match_indices.insert(i);
                     }
-                    else if (*(sub2->match_indices.lower_bound(i)) -i >= minLength*0.8 && (ub == sub2->match_indices.begin() || i - *(--ub) >= minLength*0.8)){
+                    else if (*lb -i >= minLength*0.8 && (lb == sub2->match_indices.begin() || i - *(--lb) >= minLength*0.8)){
                         sub2->match_indices.insert(i);
                     }
                 }
             }
         }
     }
-    return {max_exact_matches, inst};
+    return {max_exact_match, inst};
 }
 
 // End TODO
