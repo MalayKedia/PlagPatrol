@@ -8,11 +8,12 @@
 #define REQD_INST 10
 #define MINLEN 20
 
+int no_of_submissions = 0;
 int count = 0;
 
 tokenised_submission::tokenised_submission(double timestamp, std::shared_ptr<submission_t>& sub_ptr): time(timestamp), ptr(sub_ptr){
-    tokenizer_t file_added(sub_ptr->codefile);
-    tokens = file_added.get_tokens();
+    // Tokenising in the worker thread
+    id = no_of_submissions++;
 }
 
 tokenised_submission::~tokenised_submission(){
@@ -37,6 +38,7 @@ plagiarism_checker_t::plagiarism_checker_t(std::vector<std::shared_ptr<submissio
 }
 
 void plagiarism_checker_t::start_worker_thread(void){
+    std::cerr<<"Starting worker thread\n";
     workerThread = std::thread([this] {
         while (true) {
             std::shared_ptr<tokenised_submission> curr_ptr;
@@ -57,9 +59,22 @@ plagiarism_checker_t::~plagiarism_checker_t(void){
         std::lock_guard<std::mutex> lock(queueMutex);
         done = true;
     }
+
+    {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        done = true;
+    }
     queueCV.notify_all();  // Notify the worker thread to stop
+
     if (workerThread.joinable())
         workerThread.join();
+
+    double start_time = 0;
+    for (auto sub : submissions){
+        if (sub->time == 0) continue;
+        if (start_time == 0) start_time = sub->time;
+        std::cerr<<sub->time - start_time<<std::endl;
+    }
 
     submissions.clear();
 }
@@ -92,22 +107,42 @@ void plagiarism_checker_t::add_submission(std::shared_ptr<submission_t> __submis
 }
 
 void plagiarism_checker_t::process_submission(std::shared_ptr<tokenised_submission> curr_ptr){
+    std::cerr<<"Processing submission no "<<curr_ptr->id<<std::endl;
+    tokenizer_t file_added(curr_ptr->ptr->codefile);
+    curr_ptr->tokens = file_added.get_tokens();
+
     bool plag_found = false;
-    for(std::shared_ptr<tokenised_submission> sub_ptr: submissions){
+    {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        for(std::shared_ptr<tokenised_submission> sub_ptr: submissions){
 
-        if (!plag_found){
-            auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, 20);
+            if (!plag_found){
+                auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, 20);
 
-            if(max_matches>=reqd_matches || instances>=reqd_instances){
-                std::cerr<<"Plagiarism detected for new file\n";
-                std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
-                plag_found = true;
-                
-                curr_ptr->ptr->student->flag_student(curr_ptr->ptr);
-                curr_ptr->ptr->professor->flag_professor(curr_ptr->ptr);
-                flagged_files.insert(curr_ptr->ptr);
+                if(max_matches>=reqd_matches || instances>=reqd_instances){
+                    std::cerr<<"Plagiarism detected for new file\n";
+                    std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
+                    plag_found = true;
+                    
+                    curr_ptr->ptr->student->flag_student(curr_ptr->ptr);
+                    curr_ptr->ptr->professor->flag_professor(curr_ptr->ptr);
+                    flagged_files.insert(curr_ptr->ptr);
 
-                if(curr_ptr->time - sub_ptr->time < 1000 && flagged_files.find(sub_ptr->ptr)==flagged_files.end()){
+                    if(curr_ptr->time - sub_ptr->time < 1000 && flagged_files.find(sub_ptr->ptr)==flagged_files.end()){
+                        std::cerr<<"Plagiarism detected for old file with time diff: "<<sub_ptr->time - curr_ptr->time<<std::endl;
+                        std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
+                        sub_ptr->ptr->student->flag_student(sub_ptr->ptr);
+                        sub_ptr->ptr->professor->flag_professor(sub_ptr->ptr);
+
+                        flagged_files.insert(sub_ptr->ptr);
+                    }
+                }
+
+            }
+            else if (plag_found && curr_ptr->time - sub_ptr->time < 1000 && flagged_files.find(sub_ptr->ptr)==flagged_files.end()){
+                auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, 20);
+
+                if (max_matches>=reqd_matches || instances>=reqd_instances){
                     std::cerr<<"Plagiarism detected for old file with time diff: "<<sub_ptr->time - curr_ptr->time<<std::endl;
                     std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
                     sub_ptr->ptr->student->flag_student(sub_ptr->ptr);
@@ -116,23 +151,10 @@ void plagiarism_checker_t::process_submission(std::shared_ptr<tokenised_submissi
                     flagged_files.insert(sub_ptr->ptr);
                 }
             }
-
-        }
-        else if (plag_found && curr_ptr->time - sub_ptr->time < 1000 && flagged_files.find(sub_ptr->ptr)==flagged_files.end()){
-            auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, 20);
-
-            if (max_matches>=reqd_matches || instances>=reqd_instances){
-                std::cerr<<"Plagiarism detected for old file with time diff: "<<sub_ptr->time - curr_ptr->time<<std::endl;
-                std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
-                sub_ptr->ptr->student->flag_student(sub_ptr->ptr);
-                sub_ptr->ptr->professor->flag_professor(sub_ptr->ptr);
-
-                flagged_files.insert(sub_ptr->ptr);
-            }
         }
     }
 
-    submissions.push_back(curr_ptr); // It is added  at the end
+    submissions.push_back(curr_ptr); // It is added at the end
 }
 
 

@@ -17,6 +17,7 @@ class tokenised_submission {
         std::vector<int> tokens;
         double time;
         std::shared_ptr<submission_t> ptr;
+        int id;
 
         tokenised_submission(double, std::shared_ptr<submission_t>&);
         ~tokenised_submission();
