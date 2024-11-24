@@ -2,10 +2,10 @@
 // -----------------------------------------------------------------------------
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 #include <chrono>
 #include <set>
 #include <queue>
-#include <condition_variable>
 // You are free to add any STL includes above this comment, below the --line--.
 // DO NOT add "using namespace std;" or include any other files/libraries.
 // Also DO NOT add the include "bits/stdc++.h"
@@ -34,6 +34,7 @@ public:
 
 protected:
     // TODO: Add members and function signatures here
+    void start_worker_thread(void);
     void add_original_submission(std::shared_ptr<submission_t>);
     void process_submission(std::shared_ptr<tokenised_submission>);
 

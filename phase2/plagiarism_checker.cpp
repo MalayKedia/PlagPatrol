@@ -10,52 +10,46 @@
 
 int count = 0;
 
-tokenised_submission::tokenised_submission(double timestamp, std::shared_ptr<submission_t>& sub_ptr){
+tokenised_submission::tokenised_submission(double timestamp, std::shared_ptr<submission_t>& sub_ptr): time(timestamp), ptr(sub_ptr){
     tokenizer_t file_added(sub_ptr->codefile);
     tokens = file_added.get_tokens();
-    time = timestamp;
-    ptr = sub_ptr;
 }
 
 tokenised_submission::~tokenised_submission(){
 }
 
-plagiarism_checker_t::plagiarism_checker_t(void): done(false) {
-    reqd_matches = REQD_MATCH;
-    reqd_instances = REQD_INST;
-    minLengthToMatch = MINLEN;
+plagiarism_checker_t::plagiarism_checker_t(void): done(false), reqd_matches(REQD_MATCH), reqd_instances(REQD_INST), minLengthToMatch(MINLEN){
 
-    // Start the worker thread
-    workerThread = std::thread([this]() {
-        while (true) {
-            std::shared_ptr<tokenised_submission> submission;
-            {
-                std::unique_lock<std::mutex> lock(queueMutex);
-                queueCV.wait(lock, [this]() { return !inputQueue.empty() || done; });
-
-                if (done && inputQueue.empty())
-                    break;
-
-                submission = inputQueue.front();
-                inputQueue.pop();
-            }
-
-            // Process the submission outside the lock
-            process_submission(submission);
-        }
-    });
+    std::cerr<<"plagiarism_checker_t constructor 1 called"<<std::endl;
+    start_worker_thread();
 }
 
-plagiarism_checker_t::plagiarism_checker_t(std::vector<std::shared_ptr<submission_t>> __submissions){
-    std::cerr<<"plagiarism_checker_t constructor called"<<std::endl;
-    reqd_matches = REQD_MATCH;
-    reqd_instances = REQD_INST;
-    minLengthToMatch = MINLEN;
+plagiarism_checker_t::plagiarism_checker_t(std::vector<std::shared_ptr<submission_t>> __submissions): done(false), reqd_matches(REQD_MATCH), reqd_instances(REQD_INST), minLengthToMatch(MINLEN){
+
+    std::cerr<<"plagiarism_checker_t constructor 2 called"<<std::endl;
+    start_worker_thread();
+
     for(auto submission : __submissions){
         std::cerr<<"Adding the original submission\n";
         add_original_submission(submission);
     }
     std::cerr<<"plagiarism_checker_t constructor finished\n";
+}
+
+void plagiarism_checker_t::start_worker_thread(void){
+    workerThread = std::thread([this] {
+        while (true) {
+            std::shared_ptr<tokenised_submission> curr_ptr;
+            {
+                std::unique_lock<std::mutex> lock(queueMutex);
+                queueCV.wait(lock, [this] { return !inputQueue.empty() || done; });
+                if (done && inputQueue.empty()) return;
+                curr_ptr = inputQueue.front();
+                inputQueue.pop();
+            }
+            process_submission(curr_ptr);
+        }
+    });
 }
 
 plagiarism_checker_t::~plagiarism_checker_t(void){
@@ -72,13 +66,16 @@ plagiarism_checker_t::~plagiarism_checker_t(void){
 
 void plagiarism_checker_t::add_original_submission(std::shared_ptr<submission_t> __submission){
     std::shared_ptr<tokenised_submission> curr_ptr = std::make_shared<tokenised_submission>(0, __submission);
-    submissions.push_back(curr_ptr);
-
-    process_submission(curr_ptr);
+    
+    {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        inputQueue.push(curr_ptr);  // Add to the processing queue
+    }
+    queueCV.notify_one();  // Notify the worker thread
 }
 
 void plagiarism_checker_t::add_submission(std::shared_ptr<submission_t> __submission){
-   std::cerr << "Adding submission: " << count << std::endl;
+    std::cerr << "Adding submission: " << count << std::endl;
     count++;
 
     auto now = std::chrono::system_clock::now();
@@ -92,14 +89,11 @@ void plagiarism_checker_t::add_submission(std::shared_ptr<submission_t> __submis
         inputQueue.push(curr_ptr);  // Add to the processing queue
     }
     queueCV.notify_one();  // Notify the worker thread
-
-    submissions.push_back(curr_ptr);  // Store in the submissions list
 }
 
 void plagiarism_checker_t::process_submission(std::shared_ptr<tokenised_submission> curr_ptr){
     bool plag_found = false;
     for(std::shared_ptr<tokenised_submission> sub_ptr: submissions){
-        if(sub_ptr == curr_ptr) continue;
 
         if (!plag_found){
             auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, 20);
@@ -137,6 +131,8 @@ void plagiarism_checker_t::process_submission(std::shared_ptr<tokenised_submissi
             }
         }
     }
+
+    submissions.push_back(curr_ptr); // It is added  at the end
 }
 
 
