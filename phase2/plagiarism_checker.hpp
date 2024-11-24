@@ -56,4 +56,4 @@ protected:
     // End TODO
 };
 
-std::pair<int,int> ExactMatchesInst(std::shared_ptr<tokenised_submission>, std::shared_ptr<tokenised_submission>, const int&);
+std::pair<int,int> ExactMatchesInst(std::shared_ptr<tokenised_submission>, std::shared_ptr<tokenised_submission>, const int);

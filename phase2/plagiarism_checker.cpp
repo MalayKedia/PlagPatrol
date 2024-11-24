@@ -59,11 +59,21 @@ plagiarism_checker_t::~plagiarism_checker_t(void){
 
     if (workerThread.joinable()) workerThread.join();
 
+    // std::cerr<<"times\n";
     // double start_time = 0;
     // for (auto sub : submissions){
     //     if (sub->time == 0) continue;
     //     if (start_time == 0) start_time = sub->time;
     //     std::cerr<<sub->time - start_time<<std::endl;
+    // }
+
+    // std::cerr<<"Indexes\n";
+    // for (auto sub: submissions){
+    //     std::cerr<<"size "<<sub->tokens.size()<<std::endl;
+    //     for (auto indices: sub->match_indices){
+    //         std::cerr<<indices<<" ";
+    //     }
+    //     std::cerr<<std::endl;
     // }
 }
 
@@ -107,7 +117,7 @@ void plagiarism_checker_t::process_submission(std::shared_ptr<tokenised_submissi
                     plag_found = true;
                     curr_ptr->flag();                    
 
-                    if(curr_ptr->time - sub_ptr->time <= 1000 && !sub_ptr->flagged){
+                    if(!sub_ptr->flagged && (curr_ptr->time - sub_ptr->time <= 1000 || sub_ptr->match_indices.size()>=reqd_instances_patchwork)){
                         // std::cerr<<"Plagiarism detected for old file with time diff: "<<sub_ptr->time - curr_ptr->time<<std::endl;
                         // std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
                         sub_ptr->flag();
@@ -119,9 +129,10 @@ void plagiarism_checker_t::process_submission(std::shared_ptr<tokenised_submissi
             else if (curr_ptr->time - sub_ptr->time <= 1000 && !sub_ptr->flagged){
                 auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, minLengthToMatch);
 
-                if (max_matches>=reqd_len_exact || instances>=reqd_instances_exact){
+                if (max_matches>=reqd_len_exact || instances>=reqd_instances_exact || sub_ptr->match_indices.size()>=reqd_instances_patchwork){
                     // std::cerr<<"Plagiarism detected for old file with time diff: "<<sub_ptr->time - curr_ptr->time<<std::endl;
                     // std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
+                    // std::cerr<<"Patchwork size "<<sub_ptr->match_indices.size()<<std::endl;
                     sub_ptr->flag();
                 }
             }
@@ -131,7 +142,7 @@ void plagiarism_checker_t::process_submission(std::shared_ptr<tokenised_submissi
     }
 }
 
-std::pair<int,int> ExactMatchesInst(const std::shared_ptr<tokenised_submission> sub1, const std::shared_ptr<tokenised_submission> sub2, const int& minLength) {
+std::pair<int,int> ExactMatchesInst(const std::shared_ptr<tokenised_submission> sub1, const std::shared_ptr<tokenised_submission> sub2, const int minLength) {
     int len1 = sub1->tokens.size();
     int len2 = sub2->tokens.size();
     int max_exact_matches = 0;
@@ -139,25 +150,47 @@ std::pair<int,int> ExactMatchesInst(const std::shared_ptr<tokenised_submission> 
 
     // iterate over all possible starting positions in vec1 and vec2
     for(int pos1=0; pos1<len1; pos1++){
-        int match_pos1 = 0;
+        int largest_match = 0, match_pos2 = 0;
         for(int pos2=0; pos2<len2; pos2++){
             int curr_match = 0;
             for(; pos1+curr_match<len1 && pos2+curr_match<len2; curr_match++){
                 if(sub1->tokens[pos1+curr_match]!=sub2->tokens[pos2+curr_match]) break;
             }
-            if(curr_match>match_pos1){
-                match_pos1 = curr_match;
+            if(curr_match>largest_match){
+                largest_match = curr_match;
+                match_pos2 = pos2;
             }
         }
         // if a match of length minLength or more is found, add it to the sum and skip to the end of the match
-        if(match_pos1>=minLength) {
+        if(largest_match>=minLength) {
             // max_exact_matches += match_pos1;
-            max_exact_matches = std::max(max_exact_matches, match_pos1);
+            max_exact_matches = std::max(max_exact_matches, largest_match);
             inst++;
-            pos1+=match_pos1-1;
+            pos1+=largest_match-1;
+
+            for (int i=pos1+minLength/2; i<pos1+largest_match; i+=minLength){
+                auto ub = sub1->match_indices.upper_bound(i);
+                if (ub == sub1->match_indices.end()){
+                    sub1->match_indices.insert(i);
+                }
+                else if (*(sub1->match_indices.lower_bound(i)) -i >= minLength*0.8 && (ub == sub1->match_indices.begin() || i - *(--ub) >= minLength*0.8)){
+                    sub1->match_indices.insert(i);
+                }
+            }
+            if (!sub2->flagged){
+                for (int i=match_pos2+minLength/2; i<match_pos2+largest_match; i+=minLength){
+                    auto ub = sub2->match_indices.upper_bound(i);
+                    if (ub == sub2->match_indices.end()){
+                        sub2->match_indices.insert(i);
+                    }
+                    else if (*(sub2->match_indices.lower_bound(i)) -i >= minLength*0.8 && (ub == sub2->match_indices.begin() || i - *(--ub) >= minLength*0.8)){
+                        sub2->match_indices.insert(i);
+                    }
+                }
+            }
         }
     }
-    return std::make_pair(max_exact_matches, inst);
+    return {max_exact_matches, inst};
 }
 
 // End TODO
