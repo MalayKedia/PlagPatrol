@@ -8,7 +8,7 @@
 #define REQD_INST_PATCH 20
 #define MINLEN 15
 
-tokenised_submission::tokenised_submission(int timestamp, std::shared_ptr<submission_t>& sub_ptr): ptr(sub_ptr), time(timestamp), flagged(false) {
+tokenised_submission::tokenised_submission(long long timestamp, std::shared_ptr<submission_t>& sub_ptr): ptr(sub_ptr), time(timestamp), flagged(false) {
     // Tokenising in the worker thread
 }
 
@@ -27,7 +27,7 @@ plagiarism_checker_t::plagiarism_checker_t(void): done(false), reqd_len_exact(RE
 
 plagiarism_checker_t::plagiarism_checker_t(std::vector<std::shared_ptr<submission_t>> __submissions): done(false), reqd_len_exact(REQD_LEN_EXACT), reqd_instances_exact(REQD_INST_DIRECT), reqd_instances_patchwork(REQD_INST_PATCH), minLengthToMatch(MINLEN) {
 
-    for(auto submission : __submissions){
+    for(std::shared_ptr<submission_t> submission : __submissions){
         add_original_submission(submission);
     }
 
@@ -46,6 +46,7 @@ void plagiarism_checker_t::start_worker_thread(void){
                 inputQueue.pop();
             }
             process_submission(curr_ptr);
+            submissions.push_back(curr_ptr); // The current submission is added to vector at the end of it checking against previous files
         }
     });
 }
@@ -89,7 +90,7 @@ void plagiarism_checker_t::add_original_submission(std::shared_ptr<submission_t>
 void plagiarism_checker_t::add_submission(std::shared_ptr<submission_t> __submission){
     auto now = std::chrono::system_clock::now();
     auto duration = now.time_since_epoch();
-    int milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+    long long milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
     std::shared_ptr<tokenised_submission> curr_ptr = std::make_shared<tokenised_submission>(milliseconds, __submission);
 
@@ -137,8 +138,6 @@ void plagiarism_checker_t::process_submission(std::shared_ptr<tokenised_submissi
                 }
             }
         }
-
-        submissions.push_back(curr_ptr); // The current submission is added to vector at the end of it checking against previous files
     }
 }
 

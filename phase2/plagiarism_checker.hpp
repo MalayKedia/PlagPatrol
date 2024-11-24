@@ -15,18 +15,19 @@
 class tokenised_submission {
     public:
         std::shared_ptr<submission_t> ptr;
-        int time;
+        long long time;
         std::vector<int> tokens;
 
         std::set<int> match_indices;
         bool flagged;
 
-        tokenised_submission(int, std::shared_ptr<submission_t>&);
+        tokenised_submission(long long, std::shared_ptr<submission_t>&);
         ~tokenised_submission();
 
         void flag(void);
 };
 
+std::pair<int,int> ExactMatchesInst(std::shared_ptr<tokenised_submission>, std::shared_ptr<tokenised_submission>, const int);
 
 class plagiarism_checker_t {
     // You should NOT modify the public interface of this class.
@@ -45,7 +46,7 @@ protected:
     std::queue<std::shared_ptr<tokenised_submission>> inputQueue;
     std::mutex queueMutex;
     std::condition_variable queueCV;
-    bool done = false;
+    bool done;
     std::thread workerThread; 
 
     std::vector<std::shared_ptr<tokenised_submission>> submissions;
@@ -55,5 +56,3 @@ protected:
     int minLengthToMatch;
     // End TODO
 };
-
-std::pair<int,int> ExactMatchesInst(std::shared_ptr<tokenised_submission>, std::shared_ptr<tokenised_submission>, const int);
