@@ -8,33 +8,33 @@
 #define REQD_INST_PATCH 20
 #define MINLEN 15
 
-tokenised_submission::tokenised_submission(double timestamp, std::shared_ptr<submission_t>& sub_ptr): time(timestamp), ptr(sub_ptr), flagged(false){
+tokenised_submission::tokenised_submission(int timestamp, std::shared_ptr<submission_t>& sub_ptr): ptr(sub_ptr), time(timestamp), flagged(false) {
     // Tokenising in the worker thread
 }
 
 tokenised_submission::~tokenised_submission(){
 }
 
-plagiarism_checker_t::plagiarism_checker_t(void): done(false), reqd_matches(REQD_LEN_EXACT), reqd_instances(REQD_INST_DIRECT), minLengthToMatch(MINLEN){
+void tokenised_submission::flag(void){
+    ptr->student->flag_student(ptr);
+    ptr->professor->flag_professor(ptr);
+    flagged = true;
+}
 
-    std::cerr<<"plagiarism_checker_t constructor 1 called"<<std::endl;
+plagiarism_checker_t::plagiarism_checker_t(void): done(false), reqd_len_exact(REQD_LEN_EXACT), reqd_instances_exact(REQD_INST_DIRECT), reqd_instances_patchwork(REQD_INST_PATCH), minLengthToMatch(MINLEN) {
     start_worker_thread();
 }
 
-plagiarism_checker_t::plagiarism_checker_t(std::vector<std::shared_ptr<submission_t>> __submissions): done(false), reqd_matches(REQD_LEN_EXACT), reqd_instances(REQD_INST_DIRECT), minLengthToMatch(MINLEN){
-
-    std::cerr<<"plagiarism_checker_t constructor 2 called"<<std::endl;
-    start_worker_thread();
+plagiarism_checker_t::plagiarism_checker_t(std::vector<std::shared_ptr<submission_t>> __submissions): done(false), reqd_len_exact(REQD_LEN_EXACT), reqd_instances_exact(REQD_INST_DIRECT), reqd_instances_patchwork(REQD_INST_PATCH), minLengthToMatch(MINLEN) {
 
     for(auto submission : __submissions){
-        std::cerr<<"Adding the original submission\n";
         add_original_submission(submission);
     }
-    std::cerr<<"plagiarism_checker_t constructor finished\n";
+
+    start_worker_thread();
 }
 
 void plagiarism_checker_t::start_worker_thread(void){
-    std::cerr<<"Starting worker thread\n";
     workerThread = std::thread([this] {
         while (true) {
             std::shared_ptr<tokenised_submission> curr_ptr;
@@ -55,24 +55,16 @@ plagiarism_checker_t::~plagiarism_checker_t(void){
         std::lock_guard<std::mutex> lock(queueMutex);
         done = true;
     }
-
-    {
-        std::lock_guard<std::mutex> lock(queueMutex);
-        done = true;
-    }
     queueCV.notify_all();  // Notify the worker thread to stop
 
-    if (workerThread.joinable())
-        workerThread.join();
+    if (workerThread.joinable()) workerThread.join();
 
-    double start_time = 0;
-    for (auto sub : submissions){
-        if (sub->time == 0) continue;
-        if (start_time == 0) start_time = sub->time;
-        std::cerr<<sub->time - start_time<<std::endl;
-    }
-
-    submissions.clear();
+    // double start_time = 0;
+    // for (auto sub : submissions){
+    //     if (sub->time == 0) continue;
+    //     if (start_time == 0) start_time = sub->time;
+    //     std::cerr<<sub->time - start_time<<std::endl;
+    // }
 }
 
 void plagiarism_checker_t::add_original_submission(std::shared_ptr<submission_t> __submission){
@@ -85,12 +77,9 @@ void plagiarism_checker_t::add_original_submission(std::shared_ptr<submission_t>
 }
 
 void plagiarism_checker_t::add_submission(std::shared_ptr<submission_t> __submission){
-    // std::cerr << "Adding submission: " << count << std::endl;
-    // count++;
-
     auto now = std::chrono::system_clock::now();
     auto duration = now.time_since_epoch();
-    double milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+    int milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
     std::shared_ptr<tokenised_submission> curr_ptr = std::make_shared<tokenised_submission>(milliseconds, __submission);
 
@@ -102,57 +91,47 @@ void plagiarism_checker_t::add_submission(std::shared_ptr<submission_t> __submis
 }
 
 void plagiarism_checker_t::process_submission(std::shared_ptr<tokenised_submission> curr_ptr){
-    std::cerr<<"Processing submission no "<<curr_ptr->id<<std::endl;
     curr_ptr->tokens = tokenizer_t(curr_ptr->ptr->codefile).get_tokens();
 
-    bool plag_found = false;
+    bool plag_found = false; // tracks if plagiarism has been found for the new file
     {
         std::lock_guard<std::mutex> lock(queueMutex);
         for(std::shared_ptr<tokenised_submission> sub_ptr: submissions){
 
             if (!plag_found){
-                auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, 20);
+                auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, minLengthToMatch);
 
-                if(max_matches>=reqd_matches || instances>=reqd_instances){
-                    std::cerr<<"Plagiarism detected for new file\n";
-                    std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
+                if(max_matches>=reqd_len_exact || instances>=reqd_instances_exact){
+                    // std::cerr<<"Plagiarism detected for new file\n";
+                    // std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
                     plag_found = true;
-                    
-                    curr_ptr->ptr->student->flag_student(curr_ptr->ptr);
-                    curr_ptr->ptr->professor->flag_professor(curr_ptr->ptr);
-                    curr_ptr->flagged = true;
+                    curr_ptr->flag();                    
 
-                    if(curr_ptr->time - sub_ptr->time < 1000 && !sub_ptr->flagged){
-                        std::cerr<<"Plagiarism detected for old file with time diff: "<<sub_ptr->time - curr_ptr->time<<std::endl;
-                        std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
-                        sub_ptr->ptr->student->flag_student(sub_ptr->ptr);
-                        sub_ptr->ptr->professor->flag_professor(sub_ptr->ptr);
-
-                        sub_ptr->flagged = true;
+                    if(curr_ptr->time - sub_ptr->time <= 1000 && !sub_ptr->flagged){
+                        // std::cerr<<"Plagiarism detected for old file with time diff: "<<sub_ptr->time - curr_ptr->time<<std::endl;
+                        // std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
+                        sub_ptr->flag();
                     }
                 }
 
             }
-            else if (plag_found && curr_ptr->time - sub_ptr->time < 1000 && !sub_ptr->flagged){
-                auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, 20);
+            // If plaigarism in new file has already been detected, check old files within 1 sec 
+            else if (curr_ptr->time - sub_ptr->time <= 1000 && !sub_ptr->flagged){
+                auto [max_matches, instances] = ExactMatchesInst(curr_ptr, sub_ptr, minLengthToMatch);
 
-                if (max_matches>=reqd_matches || instances>=reqd_instances){
-                    std::cerr<<"Plagiarism detected for old file with time diff: "<<sub_ptr->time - curr_ptr->time<<std::endl;
-                    std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
-                    sub_ptr->ptr->student->flag_student(sub_ptr->ptr);
-                    sub_ptr->ptr->professor->flag_professor(sub_ptr->ptr);
-
-                    sub_ptr->flagged = true;
+                if (max_matches>=reqd_len_exact || instances>=reqd_instances_exact){
+                    // std::cerr<<"Plagiarism detected for old file with time diff: "<<sub_ptr->time - curr_ptr->time<<std::endl;
+                    // std::cerr<<"max_matches: "<<max_matches<<" instances: "<<instances<<std::endl;
+                    sub_ptr->flag();
                 }
             }
         }
-    }
 
-    submissions.push_back(curr_ptr); // It is added at the end
+        submissions.push_back(curr_ptr); // The current submission is added to vector at the end of it checking against previous files
+    }
 }
 
-
-std::pair<int,int> plagiarism_checker_t::ExactMatchesInst(const std::shared_ptr<tokenised_submission> sub1, const std::shared_ptr<tokenised_submission> sub2, const int& minLength) {
+std::pair<int,int> ExactMatchesInst(const std::shared_ptr<tokenised_submission> sub1, const std::shared_ptr<tokenised_submission> sub2, const int& minLength) {
     int len1 = sub1->tokens.size();
     int len2 = sub2->tokens.size();
     int max_exact_matches = 0;

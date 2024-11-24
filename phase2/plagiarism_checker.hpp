@@ -14,15 +14,17 @@
 
 class tokenised_submission {
     public:
-        std::vector<int> tokens;
-        double time;
         std::shared_ptr<submission_t> ptr;
+        int time;
+        std::vector<int> tokens;
 
         std::set<int> match_indices;
         bool flagged;
 
-        tokenised_submission(double, std::shared_ptr<submission_t>&);
+        tokenised_submission(int, std::shared_ptr<submission_t>&);
         ~tokenised_submission();
+
+        void flag(void);
 };
 
 
@@ -47,10 +49,11 @@ protected:
     std::thread workerThread; 
 
     std::vector<std::shared_ptr<tokenised_submission>> submissions;
-    int reqd_matches;
-    int reqd_instances;
+    int reqd_len_exact;
+    int reqd_instances_exact;
+    int reqd_instances_patchwork;
     int minLengthToMatch;
-
-    std::pair<int,int> ExactMatchesInst(std::shared_ptr<tokenised_submission>, std::shared_ptr<tokenised_submission>, const int&);
     // End TODO
 };
+
+std::pair<int,int> ExactMatchesInst(std::shared_ptr<tokenised_submission>, std::shared_ptr<tokenised_submission>, const int&);
