@@ -4,6 +4,8 @@
 #include <mutex>
 #include <chrono>
 #include <set>
+#include <queue>
+#include <condition_variable>
 // You are free to add any STL includes above this comment, below the --line--.
 // DO NOT add "using namespace std;" or include any other files/libraries.
 // Also DO NOT add the include "bits/stdc++.h"
@@ -16,7 +18,7 @@ class tokenised_submission {
         double time;
         std::shared_ptr<submission_t> ptr;
 
-        tokenised_submission(double&, std::shared_ptr<submission_t>&);
+        tokenised_submission(double, std::shared_ptr<submission_t>&);
         ~tokenised_submission();
 };
 
@@ -32,12 +34,20 @@ public:
 
 protected:
     // TODO: Add members and function signatures here
+    void add_original_submission(std::shared_ptr<submission_t>);
+    void process_submission(std::shared_ptr<tokenised_submission>);
+
+    std::queue<std::shared_ptr<tokenised_submission>> inputQueue;
+    std::mutex queueMutex;
+    std::condition_variable queueCV;
+    bool done = false;
+    std::thread workerThread; 
+
     std::vector<std::shared_ptr<tokenised_submission>> submissions;
     std::set<std::shared_ptr<submission_t>> flagged_files;
     int reqd_matches;
     int reqd_instances;
     int minLengthToMatch;
-    std::mutex mtx;
 
     std::pair<int,int> ExactMatchesInst(std::shared_ptr<tokenised_submission>, std::shared_ptr<tokenised_submission>, const int&);
     // End TODO
