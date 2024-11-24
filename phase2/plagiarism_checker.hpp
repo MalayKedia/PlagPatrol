@@ -17,7 +17,9 @@ class tokenised_submission {
         std::vector<int> tokens;
         double time;
         std::shared_ptr<submission_t> ptr;
-        int id;
+
+        std::set<int> match_indices;
+        bool flagged;
 
         tokenised_submission(double, std::shared_ptr<submission_t>&);
         ~tokenised_submission();
@@ -28,8 +30,7 @@ class plagiarism_checker_t {
     // You should NOT modify the public interface of this class.
 public:
     plagiarism_checker_t(void);
-    plagiarism_checker_t(std::vector<std::shared_ptr<submission_t>> 
-                            __submissions);
+    plagiarism_checker_t(std::vector<std::shared_ptr<submission_t>> __submissions);
     ~plagiarism_checker_t(void);
     void add_submission(std::shared_ptr<submission_t> __submission);
 
@@ -46,7 +47,6 @@ protected:
     std::thread workerThread; 
 
     std::vector<std::shared_ptr<tokenised_submission>> submissions;
-    std::set<std::shared_ptr<submission_t>> flagged_files;
     int reqd_matches;
     int reqd_instances;
     int minLengthToMatch;
